@@ -1,0 +1,13 @@
+[package]
+name = "domain"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = "0.1.92"
+error = { path = "../error" }
+macros = { path = "../macros" }
+regex = "1.13.1"
+
+[lib]
+path = "lib.rs"

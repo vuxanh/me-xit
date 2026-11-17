@@ -1,0 +1,17 @@
+[package]
+name = "ports"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+uuid = { version = "1.29.0", features = ["serde", "v4"] }
+async-trait = "0.1.92"
+serde = { version = "1.0.229", features = ["derive"] }
+chrono = "0.4.45"
+mockall = "0.15.0"
+
+domain = { path = "../domain" }
+error = { path = "../error" }
+
+[lib]
+path = "lib.rs"
