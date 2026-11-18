@@ -264,11 +264,14 @@ mod test {
             .state
             .authentication_service
             .handle_login(&ports::LoginCommand {
-                username: "username".to_string(),
-                password: "password".to_string(),
+                username: "hello".to_string(),
+                password: "world".to_string(),
             })
             .await;
 
-        assert!(result.is_ok())
+        match result {
+            Ok(_) => {}
+            Err(e) => panic!("{}", e.to_string()),
+        }
     }
 }

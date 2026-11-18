@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use actix_web::{
         App,
         http::{StatusCode, header::ContentType},
@@ -12,8 +14,8 @@ mod test {
     use error::UserError;
     use ports::{Claim, MockBlacklistCachedPort, MockHasherPort, MockRepository, MockTokenPort};
     use serde::Deserialize;
-    use sqlx::PgPool;
-    use utils::init_redis;
+
+    use crate::user::utils::{TestEnv, init_redis, setup_test};
 
     #[derive(Debug, Deserialize)]
     struct ResponseJson {
@@ -31,20 +33,16 @@ mod test {
     /// responds with http_only cookie
     /// status code OK
     /// login success
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn login_route_works(pool: PgPool) {
+    #[tokio::test]
+    async fn login_route_works() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
-            blacklist_repo: _,
+            blacklist_repo,
             hasher,
             tokenizer,
-        } = init_mocks(pool).await;
-
-        let (_redis, redis_url) = init_redis().await.unwrap();
-
-        let blacklist_repo = RedisBlacklistCachedRepository::new(&redis_url)
-            .await
-            .unwrap();
+        } = init_services(env).await;
 
         let routes = UserRoutes::new(UserServicePorts {
             repo,
@@ -75,6 +73,8 @@ mod test {
             .cookies()
             .find(|c| c.name() == "auth_token")
             .unwrap();
+
+        println!("auth: {}", auth_cookie);
         assert!(!auth_cookie.value().is_empty());
 
         let status = resp.status();
@@ -90,14 +90,16 @@ mod test {
     ///
     /// should respond with 401
     /// access denied
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn login_route_fails_invalid_password(pool: PgPool) {
+    #[tokio::test]
+    async fn login_route_fails_invalid_password() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo,
             hasher,
             tokenizer,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let routes = UserRoutes::new(UserServicePorts {
             repo,
@@ -136,14 +138,16 @@ mod test {
     ///
     /// should respond with 401
     /// access denied
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn login_route_fails_invalid_username(pool: PgPool) {
+    #[tokio::test]
+    async fn login_route_fails_invalid_username() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo,
             hasher,
             tokenizer,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let routes = UserRoutes::new(UserServicePorts {
             repo,
@@ -184,14 +188,16 @@ mod test {
     /// Should log error out with message
     /// Respond with 401 and hide error message
     /// access denied
-    #[sqlx::test]
-    async fn login_route_fails_with_repo_error(pool: PgPool) {
+    #[tokio::test]
+    async fn login_route_fails_with_repo_error() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo: _,
             blacklist_repo,
             hasher,
             tokenizer,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let mut repo = MockRepository::default();
 
@@ -242,14 +248,16 @@ mod test {
     /// Decode/verify password errors
     /// Respond with 401 and hide error message
     /// access denied
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn login_route_fails_with_hasher_error(pool: PgPool) {
+    #[tokio::test]
+    async fn login_route_fails_with_hasher_error() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo,
             hasher: _,
             tokenizer,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let mut hasher = MockHasherPort::default();
 
@@ -300,14 +308,16 @@ mod test {
     /// With jwt token in the response body
     /// Respond with success
     /// logout success
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn logout_route_works(pool: PgPool) {
+    #[tokio::test]
+    async fn logout_route_works() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo: _,
             hasher,
             tokenizer: _,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let (_redis, redis_url) = init_redis().await.unwrap();
 
@@ -361,14 +371,16 @@ mod test {
     /// Error when deserialize json body
     /// Respond with 401 and hide error message
     /// access denied
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn logout_route_fails_no_token_request(pool: PgPool) {
+    #[tokio::test]
+    async fn logout_route_fails_no_token_request() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo,
             hasher,
             tokenizer: _,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let tokenizer = MockTokenPort::default();
 
@@ -404,14 +416,18 @@ mod test {
     ///
     /// Respond with 500 and hide error message
     /// Internal server error
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn logout_route_fails_with_blacklist_repo_error(pool: PgPool) {
+    #[tokio::test]
+    async fn logout_route_fails_with_blacklist_repo_error() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
-            mut blacklist_repo,
+            blacklist_repo: _,
             hasher,
             tokenizer: _,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
+
+        let mut blacklist_repo = MockBlacklistCachedPort::default();
 
         blacklist_repo.expect_add().once().returning(|_, _| {
             Err(UserError::DatabaseError(Box::new(std::io::Error::other(
@@ -464,16 +480,16 @@ mod test {
     ///
     /// Respond with 500 and hide error message
     /// Internal server error
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn logout_route_fails_with_tokenizer_error(pool: PgPool) {
+    #[tokio::test]
+    async fn logout_route_fails_with_tokenizer_error() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
-            mut blacklist_repo,
+            blacklist_repo,
             hasher,
             tokenizer: _,
-        } = init_mocks(pool).await;
-
-        blacklist_repo.expect_add().never();
+        } = init_services(env).await;
 
         let mut tokenizer = MockTokenPort::default();
 
@@ -522,14 +538,16 @@ mod test {
     /// Request with username and password
     /// Responds with success
     /// register success
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn register_works(pool: PgPool) {
+    #[tokio::test]
+    async fn register_works() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo,
             hasher,
             tokenizer,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let routes = UserRoutes::new(UserServicePorts {
             repo,
@@ -567,14 +585,16 @@ mod test {
     /// Register fails with duplicated username
     /// Responds with conflict
     /// Resource already exists
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn register_fails_duplicate_username(pool: PgPool) {
+    #[tokio::test]
+    async fn register_fails_duplicate_username() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo,
             hasher,
             tokenizer,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let routes = UserRoutes::new(UserServicePorts {
             repo,
@@ -612,14 +632,16 @@ mod test {
     /// Register fails with hasher error
     /// Responds with 500
     /// Internal server error
-    #[sqlx::test(fixtures("./user.sql"))]
-    async fn register_fails_with_hasher_fail(pool: PgPool) {
+    #[tokio::test]
+    async fn register_fails_with_hasher_fail() {
+        let env = setup_test().await.unwrap();
+
         let UserServicePorts {
             repo,
             blacklist_repo,
             hasher: _,
             tokenizer,
-        } = init_mocks(pool).await;
+        } = init_services(env).await;
 
         let mut hasher = MockHasherPort::default();
         hasher
@@ -660,17 +682,19 @@ mod test {
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    async fn init_mocks(
-        pool: PgPool,
+    async fn init_services(
+        env: Arc<TestEnv>,
     ) -> UserServicePorts<
         PgRepository,
-        MockBlacklistCachedPort,
+        RedisBlacklistCachedRepository,
         JsonWebTokenizer,
         ArgonHasher<'static>,
     > {
-        let repo = PgRepository::from_pool(pool).await.unwrap();
+        let repo = PgRepository::new(&env.postgres_url, 25).await.unwrap();
 
-        let blacklist_repo = MockBlacklistCachedPort::default();
+        let blacklist_repo = RedisBlacklistCachedRepository::new(&env.redis_url)
+            .await
+            .unwrap();
 
         let tokenizer = JsonWebTokenizer::new("secret".as_bytes());
 
@@ -681,6 +705,34 @@ mod test {
             blacklist_repo,
             hasher,
             tokenizer,
+        }
+    }
+}
+
+#[cfg(test)]
+#[dtor::dtor(unsafe)]
+fn cleanup() {
+    println!("starting cleanup...");
+    if let Ok(out) = std::process::Command::new("podman")
+        .args([
+            "ps",
+            "-aq",
+            "--filter",
+            "label=org.testcontainers.managed-by=testcontainers",
+        ])
+        .output()
+    {
+        let ids: Vec<String> = String::from_utf8_lossy(&out.stdout)
+            .split_whitespace()
+            .map(String::from)
+            .collect();
+
+        if !ids.is_empty() {
+            println!("removing\n{}", ids.join("\n"));
+            let _ = std::process::Command::new("podman")
+                .args(["rm", "-f"])
+                .args(&ids)
+                .status();
         }
     }
 }
