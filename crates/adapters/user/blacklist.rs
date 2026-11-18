@@ -53,6 +53,5 @@ impl BlacklistCachedPort for RedisBlacklistCachedRepository {
 }
 
 fn map_redis_err(e: RedisError) -> UserError {
-    println!("{}", e.to_string());
     UserError::CacheError(Box::new(e))
 }

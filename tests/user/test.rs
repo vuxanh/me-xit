@@ -709,6 +709,9 @@ mod test {
     }
 }
 
+/// Clean up
+///
+/// Stop and delete all containers created by testcontainers
 #[cfg(test)]
 #[dtor::dtor(unsafe)]
 fn cleanup() {

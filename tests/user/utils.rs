@@ -1,50 +1,22 @@
 use std::sync::Arc;
 
+use containers::{Container, setup_postgres_container, setup_redis_container};
 // use redis::{AsyncCommands, SetOptions};
 use sqlx::postgres::PgPoolOptions;
-use testcontainers::{ContainerAsync, GenericImage, ImageExt, core::WaitFor, runners::AsyncRunner};
 use tokio::sync::OnceCell;
 
 use crate::user::fixtures::CREATE_USER;
 
-pub async fn init_redis() -> Result<(ContainerAsync<GenericImage>, String), std::io::Error> {
-    let redis = GenericImage::new("redis", "8.10-alpine")
-        .with_wait_for(WaitFor::message_on_stdout(
-            "Ready to accept connections tcp",
-        ))
-        .start()
-        .await
-        .map_err(|e| std::io::Error::other(e))?;
-
-    let port = redis
-        .get_host_port_ipv4(6379)
-        .await
-        .map_err(|e| std::io::Error::other(e))?;
-
-    let url = format!("redis://127.0.0.1:{port}");
+pub async fn init_redis() -> Result<(Container, String), std::io::Error> {
+    let (redis, url) = setup_redis_container().await.unwrap();
 
     println!("Done setup redis");
 
     Ok((redis, url))
 }
 
-pub async fn init_postgres() -> Result<(ContainerAsync<GenericImage>, String), std::io::Error> {
-    let postgres = GenericImage::new("postgres", "18.7-alpine")
-        .with_wait_for(WaitFor::message_on_stdout(
-            "database system is ready to accept connections",
-        ))
-        .with_env_var("POSTGRES_USER", "postgres")
-        .with_env_var("POSTGRES_PASSWORD", "postgres")
-        .start()
-        .await
-        .map_err(|e| std::io::Error::other(e))?;
-
-    let port = postgres
-        .get_host_port_ipv4(5432)
-        .await
-        .map_err(|e| std::io::Error::other(e))?;
-
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres?sslmode=disable");
+pub async fn init_postgres() -> Result<(Container, String), std::io::Error> {
+    let (postgres, url) = setup_postgres_container().await.unwrap();
 
     // Seed db with one user
     let pool = PgPoolOptions::new()
@@ -63,8 +35,8 @@ pub async fn init_postgres() -> Result<(ContainerAsync<GenericImage>, String), s
 }
 
 pub struct TestEnv {
-    _redis: ContainerAsync<GenericImage>,
-    _postgres: ContainerAsync<GenericImage>,
+    _redis: Container,
+    _postgres: Container,
     pub redis_url: String,
     pub postgres_url: String,
 }

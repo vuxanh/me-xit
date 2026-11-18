@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = ["crates/adapters", "crates/domain", "crates/ports", "crates/error"]
+members = [
+    "crates/adapters",
+    "crates/domain",
+    "crates/ports",
+    "crates/error",
+    "crates/containers",
+]
 
 [dependencies]
 actix-web = "4.20.0"
@@ -17,7 +23,7 @@ ports = { path = "./crates/ports" }
 sqlx = { version = "0.9.0", features = ["macros", "migrate"] }
 error = { path = "./crates/error" }
 adapters = { path = "./crates/adapters" }
-testcontainers = { version = "0.28.0" }
 tokio = "1.54.1"
 redis = { version = "1.8.1", features = ["tokio-comp"] }
 dtor = "1.0.7"
+containers = { path = "./crates/containers" }
