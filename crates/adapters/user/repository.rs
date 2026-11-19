@@ -10,6 +10,7 @@ use super::queries::SELECT_USER_PASSWORD_BY_USERNAME;
 use error::{UserError, UserResult};
 use ports::{GetUserPasswordDTO, RegisterUserCommandDTO, Repository, UserInfoQuery};
 
+#[derive(Debug)]
 pub struct PgRepository {
     pool: PgPool,
 }
@@ -22,10 +23,6 @@ impl PgRepository {
             .await
             .map_err(map_db_err)?;
 
-        Ok(Self { pool })
-    }
-
-    pub async fn from_pool(pool: PgPool) -> UserResult<Self> {
         Ok(Self { pool })
     }
 }

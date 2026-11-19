@@ -14,6 +14,7 @@ use error::{UserError, UserResult};
 
 const JWT_TTL: i64 = 30 * 60; // in seconds
 
+#[derive(Debug)]
 pub struct AuthenticationService {
     repo: Box<dyn Repository>,
     blacklist_repo: Box<dyn BlacklistCachedPort>,
@@ -84,6 +85,10 @@ impl Authenticator for AuthenticationService {
     async fn handle_validate(&self, query: &ValidateQuery) -> UserResult<bool> {
         let ValidateQuery { token } = query;
 
+        if token.is_empty() {
+            return Err(UserError::MissingToken);
+        }
+
         let claim: Claim = self.tokenizer.decode_token(token)?;
 
         self.blacklist_repo
@@ -93,6 +98,10 @@ impl Authenticator for AuthenticationService {
 
     async fn handle_logout(&self, command: &LogoutCommand) -> UserResult<()> {
         let LogoutCommand { token } = command;
+
+        if token.is_empty() {
+            return Err(UserError::MissingToken);
+        }
 
         let Claim {
             username: _,

@@ -1,0 +1,11 @@
+[package]
+name = "containers"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+testcontainers = "0.28.0"
+tokio = { version = "1.54.1", features = ["full"] }
+
+[lib]
+path = "lib.rs"

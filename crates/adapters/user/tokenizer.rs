@@ -4,6 +4,7 @@ use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode}
 use error::{UserError, UserResult};
 use ports::{Claim, TokenPort};
 
+#[derive(Debug)]
 pub struct JsonWebTokenizer {
     secret: Vec<u8>,
 }
@@ -50,5 +51,10 @@ impl JsonWebTokenizer {
 }
 
 fn map_jwt_err(e: jsonwebtoken::errors::Error) -> UserError {
-    UserError::CodecError(e.to_string())
+    let message = e.to_string();
+
+    match e.into_kind() {
+        jsonwebtoken::errors::ErrorKind::InvalidToken => UserError::InvalidToken(message),
+        _ => UserError::CodecError(message),
+    }
 }

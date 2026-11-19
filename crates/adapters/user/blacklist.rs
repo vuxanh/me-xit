@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use redis::{AsyncCommands, Client, RedisError, SetOptions, aio::MultiplexedConnection};
 
+#[derive(Debug)]
 pub struct RedisBlacklistCachedRepository {
     pool: MultiplexedConnection,
 }
@@ -24,7 +25,7 @@ impl RedisBlacklistCachedRepository {
 #[async_trait]
 impl BlacklistCachedPort for RedisBlacklistCachedRepository {
     async fn add(&self, jti: &str, ttl: i64) -> UserResult<()> {
-        let revoke_timestamp = Utc::now().timestamp_micros();
+        let revoke_timestamp = Utc::now().timestamp();
 
         let options = SetOptions::default()
             .with_expiration(redis::SetExpiry::EX(ttl.try_into().unwrap_or_default()));
@@ -53,6 +54,5 @@ impl BlacklistCachedPort for RedisBlacklistCachedRepository {
 }
 
 fn map_redis_err(e: RedisError) -> UserError {
-    println!("{}", e.to_string());
     UserError::CacheError(Box::new(e))
 }

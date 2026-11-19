@@ -27,6 +27,7 @@ pub trait Authenticator: Send + Sync {
     async fn handle_register(&self, command: &RegisterCommand) -> UserResult<()>;
 }
 
+#[derive(Debug)]
 pub struct LoginResponse {
     pub token: String,
     pub ttl: i64,
