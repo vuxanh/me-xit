@@ -3,6 +3,7 @@ use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::Error::Pas
 use error::{UserError, UserResult};
 use ports::HasherPort;
 
+#[derive(Debug)]
 pub struct ArgonHasher<'a> {
     client: Argon2<'a>,
 }

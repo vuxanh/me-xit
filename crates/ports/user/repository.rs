@@ -6,12 +6,14 @@ use chrono::{DateTime, Utc};
 use domain::User;
 use error::{UserError, UserResult};
 use mockall::automock;
+use std::fmt::Debug;
 use uuid::Uuid;
 
 pub struct GetUserPasswordDTO {
     pub password_hash: String,
 }
 
+#[derive(Debug)]
 pub struct RegisterUserCommandDTO {
     pub id: Uuid,
     pub username: String,
@@ -21,7 +23,7 @@ pub struct RegisterUserCommandDTO {
 
 #[automock]
 #[async_trait]
-pub trait Repository: Send + Sync {
+pub trait Repository: Send + Sync + Debug {
     async fn get_user_password_by_username(
         &self,
         query: &UserInfoQuery,
@@ -92,20 +94,8 @@ mod test {
 
         let user = User::new(&id.to_string(), username, password, created_at).unwrap();
 
-        let user = RegisterUserCommandDTO::try_from(user);
+        let user = RegisterUserCommandDTO::try_from(user).unwrap_err();
 
-        assert!(user.is_err());
-
-        match user {
-            Ok(_) => {
-                panic!("expected error")
-            }
-            Err(e) => match e {
-                UserError::CodecError(_) => {}
-                _ => {
-                    panic!("expected codec error")
-                }
-            },
-        }
+        assert!(matches!(user, UserError::CodecError(_)));
     }
 }

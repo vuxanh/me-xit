@@ -15,7 +15,7 @@ mod test {
     use ports::{Claim, MockHasherPort, MockRepository, MockTokenPort};
     use serde::Deserialize;
 
-    use crate::user::utils::{TestEnv, init_redis, setup_test};
+    use crate::user::utils::{TestEnv, setup_test};
 
     #[derive(Debug, Deserialize)]
     struct ResponseJson {
@@ -307,16 +307,10 @@ mod test {
 
         let UserServicePorts {
             repo,
-            blacklist_repo: _,
+            blacklist_repo,
             hasher,
             tokenizer: _,
         } = init_services(env).await;
-
-        let (_redis, redis_url) = init_redis().await.unwrap();
-
-        let blacklist_repo = RedisBlacklistCachedRepository::new(&redis_url)
-            .await
-            .unwrap();
 
         let mut tokenizer = MockTokenPort::default();
 
@@ -506,9 +500,9 @@ mod test {
         let body: ResponseJson =
             serde_json::from_slice(&test::read_body(resp).await.to_vec()).unwrap();
 
-        assert_eq!(body.message, "Internal server error");
-        assert_eq!(body.code, 500);
-        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(body.message, "Access denied");
+        assert_eq!(body.code, 401);
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
     }
 
     //========================

@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use redis::{AsyncCommands, Client, RedisError, SetOptions, aio::MultiplexedConnection};
 
+#[derive(Debug)]
 pub struct RedisBlacklistCachedRepository {
     pool: MultiplexedConnection,
 }

@@ -14,6 +14,7 @@ use error::{UserError, UserResult};
 
 const JWT_TTL: i64 = 30 * 60; // in seconds
 
+#[derive(Debug)]
 pub struct AuthenticationService {
     repo: Box<dyn Repository>,
     blacklist_repo: Box<dyn BlacklistCachedPort>,

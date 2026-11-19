@@ -8,28 +8,34 @@ use tokio::sync::OnceCell;
 use crate::user::fixtures::seed_data;
 
 pub async fn init_redis() -> Result<(Container, String), std::io::Error> {
+    println!("Setting up redis...");
+
     let (redis, url) = setup_redis_container().await.unwrap();
 
-    println!("Done setup redis");
+    println!("Done setup redis\n");
 
     Ok((redis, url))
 }
 
 pub async fn init_redis_readonly() -> Result<(Container, String), std::io::Error> {
+    println!("Setting up readonly redis...");
+
     let (redis, url) = setup_redis_readonly_container().await.unwrap();
 
-    println!("Done setup readonly redis");
+    println!("Done setup readonly redis\n");
 
     Ok((redis, url))
 }
 
 pub async fn init_postgres() -> Result<(Container, String), std::io::Error> {
+    println!("Setting up postgres...");
+
     let (postgres, url) = setup_postgres_container().await.unwrap();
 
     println!("Seeding db...");
     seed_data(&url).await?;
 
-    println!("Done setup postgres");
+    println!("Done setup postgres\n");
 
     Ok((postgres, url))
 }

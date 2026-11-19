@@ -197,6 +197,7 @@ dependencies = [
  "domain",
  "error",
  "jsonwebtoken",
+ "macros",
  "ports",
  "redis",
  "serde",

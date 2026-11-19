@@ -24,6 +24,7 @@ uuid = { version = "1.29.0", features = ["serde", "v4"] }
 domain = { path = "../domain" }
 error = { path = "../error" }
 ports = { path = "../ports" }
+macros = { path = "../macros" }
 
 [lib]
 path = "lib.rs"

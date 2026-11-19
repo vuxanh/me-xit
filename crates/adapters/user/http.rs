@@ -8,6 +8,7 @@ use actix_web::{
     post,
     web::{self, ServiceConfig},
 };
+use macros::Getters;
 use serde::{Deserialize, Serialize};
 
 use error::{UserError, UserResult};
@@ -22,6 +23,8 @@ use super::{
     blacklist::RedisBlacklistCachedRepository, hasher::ArgonHasher, repository::PgRepository,
     tokenizer::JsonWebTokenizer,
 };
+
+#[derive(Debug)]
 pub struct UserAppState {
     authentication_service: AuthenticationService,
 }
@@ -135,7 +138,45 @@ where
     pub tokenizer: T,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Default, Getters)]
+pub struct UserRoutesConfig {
+    database_url: String,
+    database_max_connection: u32,
+    blacklist_url: String,
+    jwt_secret: String,
+}
+
+impl UserRoutesConfig {
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+
+    pub fn build(mut self) -> UserResult<Self> {
+        if self.database_url == String::default() {
+            self.database_url =
+                env::var("DATABASE_URL").map_err(|e| map_var_err(e, "DATABASE_URL"))?
+        }
+        if self.database_max_connection == u32::default() {
+            self.database_max_connection = env::var("DATABASE_MAX_CONNECTION")
+                .unwrap_or("25".to_string())
+                .parse()
+                .unwrap_or(25);
+        }
+        if self.blacklist_url == String::default() {
+            self.blacklist_url = env::var("REDIS_BLACKLIST_URL")
+                .map_err(|e| map_var_err(e, "REDIS_BLACKLIST_URL"))?
+        }
+        if self.jwt_secret == String::default() {
+            self.jwt_secret = env::var("JWT_SECRET").map_err(|e| map_var_err(e, "JWT_SECRET"))?
+        }
+
+        Ok(self)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct UserRoutes {
     state: web::Data<UserAppState>,
 }
@@ -162,23 +203,13 @@ impl UserRoutes {
         Ok(Self { state })
     }
 
-    pub async fn default() -> UserResult<Self> {
-        let database_url = env::var("DATABASE_URL").map_err(|e| map_var_err(e, "DATABASE_URL"))?;
-        let max_connection = env::var("DATABASE_MAX_CONNECTION")
-            .unwrap_or("25".to_string())
-            .parse()
-            .unwrap_or(25);
+    pub async fn default(config: &UserRoutesConfig) -> UserResult<Self> {
+        let repo =
+            PgRepository::new(config.database_url(), config.database_max_connection()).await?;
 
-        let repo = PgRepository::new(&database_url, max_connection).await?;
+        let blacklist_repo = RedisBlacklistCachedRepository::new(config.blacklist_url()).await?;
 
-        let redis_url =
-            env::var("REDIS_BLACKLIST_URL").map_err(|e| map_var_err(e, "REDIS_BLACKLIST_URL"))?;
-
-        let blacklist_repo = RedisBlacklistCachedRepository::new(&redis_url).await?;
-
-        let secret = env::var("JWT_SECRET").map_err(|e| map_var_err(e, "JWT_SECRET"))?;
-
-        let tokenizer = JsonWebTokenizer::new(secret.as_bytes());
+        let tokenizer = JsonWebTokenizer::new(config.jwt_secret().as_bytes());
 
         let hasher = ArgonHasher::new();
 
@@ -252,26 +283,40 @@ fn map_response_err(e: UserError) -> HttpResponse {
 
 #[cfg(test)]
 mod test {
+    use std::env::VarError;
+
+    use error::UserError;
     use ports::Authenticator;
 
-    use crate::UserRoutes;
+    use crate::{
+        UserRoutes,
+        user::http::{UserRoutesConfig, map_var_err},
+    };
 
     #[actix_web::test]
     async fn default_works() {
-        let routes = UserRoutes::default().await.unwrap();
+        let config = UserRoutesConfig::new().build().unwrap();
+        let routes = UserRoutes::default(&config).await.unwrap();
 
-        let result = routes
+        routes
             .state
             .authentication_service
             .handle_login(&ports::LoginCommand {
                 username: "hello".to_string(),
                 password: "world".to_string(),
             })
-            .await;
+            .await
+            .expect("expect ok got error:");
+    }
 
-        match result {
-            Ok(_) => {}
-            Err(e) => panic!("{}", e.to_string()),
-        }
+    #[actix_web::test]
+    async fn map_var_err_works() {
+        let err = map_var_err(VarError::NotPresent, "KEY");
+
+        assert!(matches!(err, UserError::Config(_)));
+        assert_eq!(
+            err.to_string(),
+            "Config error environment variable not found for key: KEY"
+        );
     }
 }

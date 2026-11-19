@@ -2,7 +2,7 @@ use std::env;
 
 use actix_web::{App, HttpResponse, HttpServer, Responder, web};
 
-use adapters::UserRoutes;
+use adapters::{UserRoutes, UserRoutesConfig};
 
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
@@ -15,7 +15,11 @@ async fn start_server() -> std::io::Result<()> {
         .parse()
         .unwrap_or(3000);
 
-    let user_routes = UserRoutes::default()
+    let config = UserRoutesConfig::default()
+        .build()
+        .map_err(|e| std::io::Error::other(e))?;
+
+    let user_routes = UserRoutes::default(&config)
         .await
         .map_err(|e| std::io::Error::other(e))?;
 

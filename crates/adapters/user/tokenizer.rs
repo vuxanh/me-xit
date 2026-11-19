@@ -4,6 +4,7 @@ use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode}
 use error::{UserError, UserResult};
 use ports::{Claim, TokenPort};
 
+#[derive(Debug)]
 pub struct JsonWebTokenizer {
     secret: Vec<u8>,
 }
