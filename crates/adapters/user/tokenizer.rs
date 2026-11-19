@@ -50,5 +50,10 @@ impl JsonWebTokenizer {
 }
 
 fn map_jwt_err(e: jsonwebtoken::errors::Error) -> UserError {
-    UserError::CodecError(e.to_string())
+    let message = e.to_string();
+
+    match e.into_kind() {
+        jsonwebtoken::errors::ErrorKind::InvalidToken => UserError::InvalidToken(message),
+        _ => UserError::CodecError(message),
+    }
 }

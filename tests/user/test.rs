@@ -12,7 +12,7 @@ mod test {
         UserServicePorts,
     };
     use error::UserError;
-    use ports::{Claim, MockBlacklistCachedPort, MockHasherPort, MockRepository, MockTokenPort};
+    use ports::{Claim, MockHasherPort, MockRepository, MockTokenPort};
     use serde::Deserialize;
 
     use crate::user::utils::{TestEnv, init_redis, setup_test};
@@ -255,16 +255,9 @@ mod test {
         let UserServicePorts {
             repo,
             blacklist_repo,
-            hasher: _,
+            hasher,
             tokenizer,
         } = init_services(env).await;
-
-        let mut hasher = MockHasherPort::default();
-
-        hasher
-            .expect_verify()
-            .once()
-            .returning(|_, _| Err(UserError::CodecError("couldn't verify error".to_string())));
 
         let routes = UserRoutes::new(UserServicePorts {
             repo,
@@ -282,7 +275,7 @@ mod test {
             .insert_header(ContentType::json())
             .set_json(serde_json::json!(
                 {
-                    "username": "hello",
+                    "username": "hello_invalid_hash",
                     "password": "world"
                 }
             ))
@@ -425,15 +418,11 @@ mod test {
             blacklist_repo: _,
             hasher,
             tokenizer: _,
-        } = init_services(env).await;
+        } = init_services(env.clone()).await;
 
-        let mut blacklist_repo = MockBlacklistCachedPort::default();
-
-        blacklist_repo.expect_add().once().returning(|_, _| {
-            Err(UserError::DatabaseError(Box::new(std::io::Error::other(
-                "database_error".to_string(),
-            ))))
-        });
+        let blacklist_repo = RedisBlacklistCachedRepository::new(&env.redis_readonly_url)
+            .await
+            .unwrap();
 
         let mut tokenizer = MockTokenPort::default();
 
@@ -488,15 +477,8 @@ mod test {
             repo,
             blacklist_repo,
             hasher,
-            tokenizer: _,
+            tokenizer,
         } = init_services(env).await;
-
-        let mut tokenizer = MockTokenPort::default();
-
-        tokenizer
-            .expect_decode_token()
-            .once()
-            .returning(|_| Err(UserError::CodecError("error".to_string())));
 
         let routes = UserRoutes::new(UserServicePorts {
             repo,
@@ -731,11 +713,17 @@ fn cleanup() {
             .collect();
 
         if !ids.is_empty() {
-            println!("removing\n{}", ids.join("\n"));
+            println!("removing containers\n{}", ids.join("\n"));
             let _ = std::process::Command::new("podman")
                 .args(["rm", "-f"])
                 .args(&ids)
                 .status();
         }
     }
+
+    println!("removing anonymous volumes...");
+
+    let _ = std::process::Command::new("podman")
+        .args(["volume", "prune", "--filter", "anonymous=true", "-f"])
+        .status();
 }

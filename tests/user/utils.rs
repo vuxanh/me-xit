@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use containers::{Container, setup_postgres_container, setup_redis_container};
-// use redis::{AsyncCommands, SetOptions};
-use sqlx::postgres::PgPoolOptions;
+use containers::{
+    Container, setup_postgres_container, setup_redis_container, setup_redis_readonly_container,
+};
 use tokio::sync::OnceCell;
 
-use crate::user::fixtures::CREATE_USER;
+use crate::user::fixtures::seed_data;
 
 pub async fn init_redis() -> Result<(Container, String), std::io::Error> {
     let (redis, url) = setup_redis_container().await.unwrap();
@@ -15,19 +15,19 @@ pub async fn init_redis() -> Result<(Container, String), std::io::Error> {
     Ok((redis, url))
 }
 
+pub async fn init_redis_readonly() -> Result<(Container, String), std::io::Error> {
+    let (redis, url) = setup_redis_readonly_container().await.unwrap();
+
+    println!("Done setup readonly redis");
+
+    Ok((redis, url))
+}
+
 pub async fn init_postgres() -> Result<(Container, String), std::io::Error> {
     let (postgres, url) = setup_postgres_container().await.unwrap();
 
-    // Seed db with one user
-    let pool = PgPoolOptions::new()
-        .max_connections(25)
-        .connect(&url)
-        .await
-        .unwrap();
-
-    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
-
-    sqlx::query(CREATE_USER).execute(&pool).await.unwrap();
+    println!("Seeding db...");
+    seed_data(&url).await?;
 
     println!("Done setup postgres");
 
@@ -36,8 +36,10 @@ pub async fn init_postgres() -> Result<(Container, String), std::io::Error> {
 
 pub struct TestEnv {
     _redis: Container,
+    _redis_readonly: Container,
     _postgres: Container,
     pub redis_url: String,
+    pub redis_readonly_url: String,
     pub postgres_url: String,
 }
 
@@ -48,6 +50,10 @@ pub async fn setup_test() -> Result<Arc<TestEnv>, std::io::Error> {
         .get_or_try_init(|| async {
             let (_redis, redis_url) = init_redis().await.map_err(|e| std::io::Error::other(e))?;
 
+            let (_redis_readonly, redis_readonly_url) = init_redis_readonly()
+                .await
+                .map_err(|e| std::io::Error::other(e))?;
+
             let (_postgres, postgres_url) = init_postgres()
                 .await
                 .map_err(|e| std::io::Error::other(e))?;
@@ -57,6 +63,8 @@ pub async fn setup_test() -> Result<Arc<TestEnv>, std::io::Error> {
                 _postgres,
                 redis_url,
                 postgres_url,
+                _redis_readonly,
+                redis_readonly_url,
             }))
         })
         .await?;

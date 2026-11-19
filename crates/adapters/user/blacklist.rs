@@ -24,7 +24,7 @@ impl RedisBlacklistCachedRepository {
 #[async_trait]
 impl BlacklistCachedPort for RedisBlacklistCachedRepository {
     async fn add(&self, jti: &str, ttl: i64) -> UserResult<()> {
-        let revoke_timestamp = Utc::now().timestamp_micros();
+        let revoke_timestamp = Utc::now().timestamp();
 
         let options = SetOptions::default()
             .with_expiration(redis::SetExpiry::EX(ttl.try_into().unwrap_or_default()));
