@@ -69,6 +69,13 @@ struct LoginRequestJson {
     password: String,
 }
 
+#[derive(Debug, Serialize)]
+struct LoginResponseJson {
+    code: u16,
+    message: String,
+    username: String,
+}
+
 #[post("/login")]
 async fn handle_login(
     body: web::Json<LoginRequestJson>,
@@ -84,16 +91,20 @@ async fn handle_login(
 
     match result {
         Ok(LoginResponse { token, ttl }) => {
-            let auth_cookie = Cookie::build("auth_token", token)
+            let auth_cookie = Cookie::build("__Host-auth", token)
                 .secure(true)
                 .http_only(true)
+                .path("/")
                 .same_site(SameSite::Strict)
                 .max_age(Duration::seconds(ttl))
                 .finish();
-            HttpResponse::Ok().cookie(auth_cookie).json(ResponseJson {
-                code: StatusCode::OK.as_u16(),
-                message: "Login success".to_string(),
-            })
+            HttpResponse::Ok()
+                .cookie(auth_cookie)
+                .json(LoginResponseJson {
+                    code: StatusCode::OK.as_u16(),
+                    message: "Login success".to_string(),
+                    username: body.username.to_string(),
+                })
         }
         Err(e) => map_response_err(e),
     }
