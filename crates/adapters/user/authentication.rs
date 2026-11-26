@@ -5,9 +5,9 @@ use uuid::Uuid;
 use domain::User;
 
 use ports::{
-    Authenticator, BlacklistCachedPort, Claim, GetJtiExistsQuery, HasherPort, LoginCommand,
-    LoginResponse, LogoutCommand, RegisterCommand, Repository, TokenPort, UserInfoQuery,
-    ValidateQuery,
+    Authenticator, BlacklistCachedPort, GetJtiExistsQuery, HasherPort, LoginCommand, LoginResponse,
+    LogoutCommand, RegisterCommand, Repository, TokenPort, UserInfoQuery, ValidateQuery,
+    ValidateResponse,
 };
 
 use error::{UserError, UserResult};
@@ -36,6 +36,10 @@ impl AuthenticationService {
             tokenizer: Box::new(tokenizer),
             hasher: Box::new(hasher),
         }
+    }
+
+    pub fn tokenizer(&self) -> &Box<dyn TokenPort> {
+        &self.tokenizer
     }
 }
 
@@ -82,33 +86,27 @@ impl Authenticator for AuthenticationService {
         })
     }
 
-    async fn handle_validate(&self, query: &ValidateQuery) -> UserResult<bool> {
-        let ValidateQuery { token } = query;
+    async fn handle_validate(&self, query: &ValidateQuery) -> UserResult<ValidateResponse> {
+        let claim = query.claim.clone();
 
-        if token.is_empty() {
-            return Err(UserError::MissingToken);
+        let exist = self
+            .blacklist_repo
+            .exist(&GetJtiExistsQuery { jti: claim.jti })
+            .await?;
+
+        if !exist {
+            return Ok(ValidateResponse {
+                username: claim.username,
+                role: claim.role,
+            });
         }
 
-        let claim: Claim = self.tokenizer.decode_token(token)?;
-
-        self.blacklist_repo
-            .verify(&GetJtiExistsQuery { jti: claim.jti })
-            .await
+        Err(UserError::InvalidToken("Token not verified".to_string()))
     }
 
     async fn handle_logout(&self, command: &LogoutCommand) -> UserResult<()> {
-        let LogoutCommand { token } = command;
+        let LogoutCommand { claim } = command;
 
-        if token.is_empty() {
-            return Err(UserError::MissingToken);
-        }
-
-        let Claim {
-            username: _,
-            jti,
-            exp,
-        } = self.tokenizer.decode_token(token)?;
-
-        self.blacklist_repo.add(&jti, exp).await
+        self.blacklist_repo.add(&claim.jti, claim.exp).await
     }
 }

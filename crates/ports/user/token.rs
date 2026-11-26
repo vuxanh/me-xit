@@ -4,11 +4,12 @@ use std::fmt::Debug;
 
 use error::UserResult;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claim {
     pub username: String,
     pub jti: String,
     pub exp: i64,
+    pub role: String,
 }
 
 #[automock]

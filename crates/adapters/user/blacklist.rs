@@ -42,7 +42,7 @@ impl BlacklistCachedPort for RedisBlacklistCachedRepository {
         Ok(result)
     }
 
-    async fn verify(&self, query: &GetJtiExistsQuery) -> UserResult<bool> {
+    async fn exist(&self, query: &GetJtiExistsQuery) -> UserResult<bool> {
         let GetJtiExistsQuery { jti } = query;
 
         let key = format!("bl:jwt:{}", jti);

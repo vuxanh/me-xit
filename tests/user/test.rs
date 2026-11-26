@@ -319,6 +319,7 @@ mod test {
                 username: "hello".to_string(),
                 jti: "mock_jti".to_string(),
                 exp: 1,
+                role: "user".to_string(),
             })
         });
 
@@ -425,6 +426,7 @@ mod test {
                 username: "hello".to_string(),
                 jti: "mock_jti".to_string(),
                 exp: 1,
+                role: "User".to_string(),
             })
         });
 

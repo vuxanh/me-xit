@@ -4,6 +4,7 @@ use actix_web::{
     HttpResponse, Responder,
     cookie::{Cookie, SameSite, time::Duration},
     error::JsonPayloadError,
+    get,
     http::StatusCode,
     post,
     web::{self, ServiceConfig},
@@ -13,8 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use error::{UserError, UserResult};
 use ports::{
-    Authenticator, BlacklistCachedPort, HasherPort, LoginCommand, LoginResponse, LogoutCommand,
-    RegisterCommand, Repository, TokenPort,
+    Authenticator, BlacklistCachedPort, Claim, HasherPort, LoginCommand, LoginResponse,
+    LogoutCommand, RegisterCommand, Repository, TokenPort, ValidateQuery,
 };
 
 use crate::user::authentication::AuthenticationService;
@@ -27,6 +28,12 @@ use super::{
 #[derive(Debug)]
 pub struct UserAppState {
     authentication_service: AuthenticationService,
+}
+
+impl UserAppState {
+    pub fn tokenizer(&self) -> &Box<dyn TokenPort> {
+        self.authentication_service.tokenizer()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -110,27 +117,59 @@ async fn handle_login(
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct LogoutRequest {
-    token: String,
-}
-
 #[post("/logout")]
 async fn handle_logout(
-    body: web::Json<LogoutRequest>,
+    req_ext: Option<web::ReqData<Claim>>,
     state: web::Data<UserAppState>,
 ) -> impl Responder {
+    let claim = match req_ext {
+        Some(req) => req.into_inner(),
+        None => {
+            return map_response_err(UserError::InvalidCredentials("Invalid claim".to_string()));
+        }
+    };
+
     let result = state
         .authentication_service
-        .handle_logout(&LogoutCommand {
-            token: body.token.to_string(),
-        })
+        .handle_logout(&LogoutCommand { claim })
         .await;
 
     match result {
         Ok(_) => HttpResponse::Ok().json(ResponseJson {
             code: StatusCode::OK.as_u16(),
             message: "Logout success".to_string(),
+        }),
+        Err(e) => map_response_err(e),
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ValidateResponseJson {
+    username: String,
+    role: String,
+}
+
+#[get("/me")]
+async fn handle_validate(
+    state: web::Data<UserAppState>,
+    req_ext: Option<web::ReqData<Claim>>,
+) -> impl Responder {
+    let claim = match req_ext {
+        Some(req) => req.into_inner(),
+        None => {
+            return map_response_err(UserError::InvalidCredentials("Invalid claim".to_string()));
+        }
+    };
+
+    let result = state
+        .authentication_service
+        .handle_validate(&ValidateQuery { claim })
+        .await;
+
+    match result {
+        Ok(response) => HttpResponse::Ok().json(ValidateResponseJson {
+            username: response.username,
+            role: response.role,
         }),
         Err(e) => map_response_err(e),
     }
@@ -247,7 +286,8 @@ impl UserRoutes {
                 .app_data(json_config)
                 .service(handle_register)
                 .service(handle_login)
-                .service(handle_logout),
+                .service(handle_logout)
+                .service(handle_validate),
         );
     }
 }
@@ -261,8 +301,6 @@ fn map_json_payload_err(e: &JsonPayloadError) -> UserError {
 }
 
 fn map_response_err(e: UserError) -> HttpResponse {
-    eprintln!("{}", e.to_string());
-
     let status_code = match e {
         UserError::InvalidCredentials(_) | UserError::MissingToken | UserError::InvalidToken(_) => {
             StatusCode::UNAUTHORIZED

@@ -13,10 +13,12 @@ impl TokenPort for JsonWebTokenizer {
     fn generate_token(&self, username: &str, jti: &str, ttl: i64) -> UserResult<String> {
         let exp = Utc::now().timestamp() + ttl;
 
+        // TODO: impl roles
         let claim = Claim {
             username: username.to_string(),
             jti: jti.to_string(),
             exp,
+            role: "User".to_string(),
         };
 
         let token = encode(

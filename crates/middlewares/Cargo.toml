@@ -1,0 +1,11 @@
+[package]
+name = "middlewares"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4.20.0"
+adapters = { path = "../adapters" }
+
+[lib]
+path = "lib.rs"
